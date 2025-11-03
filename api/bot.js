@@ -1,20 +1,17 @@
 import express from "express";
 import fetch from "node-fetch";
 
-const app = express();
-app.use(express.json());
+const router = express.Router();
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const BASE_URL = "https://api.telegram.org/bot" + BOT_TOKEN;
 
-// Replace with your Terabox API endpoint
 const TERA_API = "https://iteraplay.com/api/play.php?url=";
 const API_KEY = "iTeraPlay2025";
 
-// Replace with your deployed Vercel player domain
-const PLAYER_BASE = "https://YOUR_APP_NAME.vercel.app/api/player?src=";
+const PLAYER_BASE = process.env.PLAYER_BASE || "https://your-domain/api/player?src=";
 
-app.post("/", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const message = req.body.message;
     if (!message || !message.text) return res.sendStatus(200);
@@ -22,25 +19,24 @@ app.post("/", async (req, res) => {
     const chatId = message.chat.id;
     const text = message.text.trim();
 
-    if (text.includes("terabox") || text.includes("1024tera")) {
+    if (text.includes("terabox")) {
       const apiUrl = `${TERA_API}${encodeURIComponent(text)}&key=${API_KEY}`;
       const response = await fetch(apiUrl);
       const data = await response.json();
 
-      if (!data || !data.title || !data.download_url) {
+      if (!data || !data.download_url) {
         await fetch(`${BASE_URL}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: chatId,
-            text: "⚠️ Unable to fetch video details. Please try again later.",
+            text: "⚠️ Unable to fetch video details.",
           }),
         });
         return res.sendStatus(200);
       }
 
       const playerLink = `${PLAYER_BASE}${encodeURIComponent(data.download_url)}`;
-
       const replyMarkup = {
         inline_keyboard: [
           [{ text: "▶️ Play in Browser", url: playerLink }],
@@ -48,13 +44,12 @@ app.post("/", async (req, res) => {
         ],
       };
 
-      await fetch(`${BASE_URL}/sendPhoto`, {
+      await fetch(`${BASE_URL}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          photo: data.thumbnail || data.thumb || "",
-          caption: `🎬 *${data.title}*\n\n📦 Terabox Video Ready!`,
+          text: `🎬 *${data.title || "Video"}*\n\n📦 Terabox Video Ready!`,
           parse_mode: "Markdown",
           reply_markup: replyMarkup,
         }),
@@ -65,16 +60,16 @@ app.post("/", async (req, res) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          text: "📎 Please send a valid Terabox link!",
+          text: "📎 Send a valid Terabox link!",
         }),
       });
     }
 
     res.sendStatus(200);
-  } catch (error) {
-    console.error("Error:", error);
+  } catch (err) {
+    console.error("Bot Error:", err);
     res.sendStatus(500);
   }
 });
 
-export default app;
+export default router;
